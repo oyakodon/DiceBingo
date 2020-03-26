@@ -6,6 +6,8 @@
 
 意外とウケたので公開します。
 
+![Screenshot](assets/diceroll.png)
+
 ## ダウンロード
 
 - 下記リンクから適切なバージョンをダウンロードしてください (For Windows only)
