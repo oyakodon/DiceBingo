@@ -94,11 +94,12 @@ void drawDiceN(int n, const Vec2& shift, const Mesh& mesh, const Texture& tex)
 	}
 }
 
-const int BINGO_NUM = 72;
+// const int BINGO_NUM = 72;
 
 void Main()
 {
-	const Font font(16);
+	const Font font_M(32, L"Consolas", FontStyle::Regular);
+	const Font font_S(16, L"Consolas", FontStyle::Regular);
 
 	Graphics3D::SetAmbientLight(ColorF(0.3));
 	const Texture textureDice(CreateDiceImage(256), TextureDesc::For3D);
@@ -109,6 +110,7 @@ void Main()
 	const Array<Size> resolutions = Graphics::GetFullScreenSize();
 	Window::SetFullscreen(true, resolutions[resolutions.size() - 1]);
 
+	bool isNumConfirmed = false;
 	bool isReady = false;
 	bool modeYosano = false;	// 与謝野モード
 	int state = 0;	// 0: ダイスロール, 1: 10の位, 2: 1の位
@@ -117,13 +119,70 @@ void Main()
 	Array<int> bingoNumbers;	// ビンゴの数字リスト (使われたらerase)
 	Array<int> hitNumbers;		// 使われた数字リスト
 
+	int32 BINGO_NUM = 50;
+	bool showDescription = false;
+	const INIReader ini(L"settings.ini");
+	if (ini)
+	{
+		BINGO_NUM = ini.getOr<int32>(L"Bingo.num", 50);
+		showDescription = ini.getOr<bool>(L"Bingo.desc", false);
+	}
+
 	while (System::Update())
 	{
-		Graphics3D::FreeCamera();
+		if (!isNumConfirmed)
+		{
+			font_M(L"Bingo num: ", BINGO_NUM).draw();
+			font_S(L"<Up> to increase bingo num.").draw({ 0, 80 });
+			font_S(L"<Down> to decrease bingo num.").draw({ 0, 110 });
+			font_S(L"<Space> to confirm bingo num").draw({ 0, 140 });
+
+			if (Input::KeyUp.clicked)
+			{
+				BINGO_NUM = Min(INT32_MAX, BINGO_NUM + 1);
+			}
+			if (Input::KeyUp.pressed && Input::KeyUp.pressedDuration > 1500)
+			{
+				if (System::FrameCount() % 6 == 0)
+				{
+					BINGO_NUM = Min(INT32_MAX, BINGO_NUM + 1);
+				}
+			}
+
+			if (Input::KeyDown.clicked)
+			{
+				BINGO_NUM = Max(1, BINGO_NUM - 1);
+			}
+			if (Input::KeyDown.pressed && Input::KeyDown.pressedDuration > 1500)
+			{
+				if (System::FrameCount() % 6 == 0)
+				{
+					BINGO_NUM = Max(1, BINGO_NUM - 1);
+				}
+			}
+
+			if (Input::KeySpace.clicked)
+			{
+				isNumConfirmed = true;
+				INIWriter writer(L"settings.ini");
+				writer.write(L"Bingo", L"num", BINGO_NUM);
+				writer.write(L"Bingo", L"desc", showDescription);
+			}
+
+			continue;
+		}
 
 		if (!isReady)
 		{
-			font(L"Ready.").draw();
+			font_M(L"Ready.").draw();
+			font_S(textureYosano ? L"(yosano loaded.)" : L"(Warning: failed to load \"yosano.png\".)").draw({ 0, 100 });
+
+			int32 y = 200;
+			font_S(L"Usage:").draw({ 0, y }); y += 50;
+			font_S(L"<Space> to roll dice or select number.").draw({ 0, y }); y += 30;
+			font_S(L"<Y> to toggle yosano mode.").draw({ 0, y }); y += 30;
+			font_S(L"<[,]> to show previous number. (number history)").draw({ 0, y }); y += 30;
+			font_S(L"<Ctrl + R> to reset.").draw({ 0, y });
 
 			if (Input::KeySpace.clicked)
 			{
@@ -138,13 +197,15 @@ void Main()
 			continue;
 		}
 
+		Graphics3D::FreeCamera();
+
 		if (bingoNumbers.size() == 0)
 		{
-			font(L"End.").draw();
+			font_M(L"End.").draw();
 		}
 		else
 		{
-			font((BINGO_NUM - bingoNumbers.size() + cur), L" / ", BINGO_NUM).draw();
+			font_M((BINGO_NUM - bingoNumbers.size() + cur), L" / ", BINGO_NUM).draw();
 		}
 
 		if (Input::KeySpace.clicked)
@@ -218,11 +279,21 @@ void Main()
 			drawDiceN(num % 10, Vec2(2, 5), meshDice, modeYosano ? textureYosano : textureDice);
 			// 10の位
 			drawDiceN(num / 10, Vec2(-8, 5), meshDice, modeYosano ? textureYosano : textureDice);
+
+			if (showDescription)
+			{
+				font_S(L"press <Space> to roll dice.").drawCenter({ Window::Center().x, Window::Height() - 100 });
+			}
 		}
 		else if (state == 1)
 		{
 			// 10の位
 			drawDiceN(num / 10, Vec2(-8, 5), meshDice, modeYosano ? textureYosano : textureDice);
+
+			if (showDescription)
+			{
+				font_S(L"press <Space> to select first digit.").drawCenter({ Window::Center().x, Window::Height() - 100 });
+			}
 		}
 		else
 		{
@@ -235,6 +306,11 @@ void Main()
 					fc / 12.0)
 				.translated(0, 2, 0)
 				.draw(modeYosano ? textureYosano : textureDice);
+
+			if (showDescription && bingoNumbers.size() > 0)
+			{
+				font_S(L"press <Space> to select num.").drawCenter({ Window::Center().x, Window::Height() - 100 });
+			}
 		}
 
 	}
